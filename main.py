@@ -1,7 +1,6 @@
 import time
-import os
 import signal
-import sys
+from tkinter import *
 from evdev import InputDevice
 
 
@@ -25,14 +24,17 @@ class BatteryInfo:
         self.mode = int(online_string[-2:])
         if self.mode == 1:
             print("AC mode")
+            text.insert(INSERT, "AC mode")
         else:
             print("Battery mode")
+            text.insert(INSERT, "Battery mode")
         uevent.close()
 
     def get_capacity(self):
         capacity = open("/sys/class/power_supply/BAT0/capacity")
         self.capacity = int(capacity.read())
         print("Capacity: " + str(self.capacity) + "%")
+        text.insert(INSERT, "Capacity: " + str(self.capacity) + "%")
         capacity.close()
 
     def get_estimated_time(self):
@@ -48,6 +50,7 @@ class BatteryInfo:
                 self.hours_remain = time_remain[0]
                 self.minutes_remain = int((charge_now_int / current_now_int - self.hours_remain) * 60)
                 print("Time to full discharge: " + str(self.hours_remain) + ":" + str(self.minutes_remain))
+                text.insert(INSERT, "Time to full discharge: " + str(self.hours_remain) + ":" + str(self.minutes_remain))
 
             charge_now_file.close()
             current_now_file.close()
@@ -71,7 +74,8 @@ class BatteryInfo:
         self.brightness = self.brightness_at_start
         brightness.close()
 
-
+top = Tk()
+text = Text(top)
 info = BatteryInfo()
 data_update_time = 3
 dim_time = 5
@@ -81,14 +85,18 @@ dev2 = InputDevice('/dev/input/event6')
 
 def signal_handler(signal, frame):
     print('Backlight settings were restored')
+    text.insert(INSERT, 'Backlight settings were restored')
     info.set_original_brightness()
     dev.close()
     dev2.close()
+    top.destroy()
     sys.exit(0)
 
 
 if __name__ == '__main__':
+
     print(dev2)
+    text.insert(INSERT, dev2)
 
     signal.signal(signal.SIGINT, signal_handler)
     start_time = time.time()
@@ -120,8 +128,10 @@ if __name__ == '__main__':
             dim_flag = True
 
         if time.time() > count_time + data_update_time:
-            os.system('clear')
+            #os.system('clear')
             count_time = time.time()
             info.get_power_type()
             info.get_capacity()
-info.get_estimated_time()
+            info.get_estimated_time()
+top.mainloop()
+
