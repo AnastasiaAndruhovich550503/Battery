@@ -1,5 +1,6 @@
 import time
 import signal
+import os
 from tkinter import *
 from evdev import InputDevice
 
@@ -11,11 +12,11 @@ class BatteryInfo:
         self.capacity = 100
         self.hours_remain = 2
         self.minutes_remain = 2
-        self.brightness_at_start = 400
+        self.brightness_at_start = 100
         self.brightness_in_powersafe_mode = int(self.brightness_at_start / 2)
-        self.brightness = 400
+        self.brightness = 100
         self.get_brightness_at_start()
-        # in minutes
+        # in seconds
         self.dim_time = 5
 
     def get_power_type(self):
@@ -49,7 +50,7 @@ class BatteryInfo:
                 time_remain = divmod(charge_now_int, current_now_int)
                 self.hours_remain = time_remain[0]
                 self.minutes_remain = int((charge_now_int / current_now_int - self.hours_remain) * 60)
-                text.insert(INSERT, "Time to full discharge: " + str(self.hours_remain) + ":" + str(self.minutes_remain))
+                text.insert(INSERT, "Time to full discharge: " + "0" + ":" + str(self.minutes_remain))
                 text.insert(INSERT, '\n')
 
             charge_now_file.close()
@@ -69,6 +70,7 @@ class BatteryInfo:
         #brightness.close()
 
     def set_original_brightness(self):
+        os.system("xset dpms force on")
         brightness = open("/sys/class/backlight/nv_backlight/brightness", "w")
         brightness.write(str(self.brightness_at_start))
         self.brightness = self.brightness_at_start
@@ -76,7 +78,9 @@ class BatteryInfo:
 
 top = Tk()
 text = Text(top)
+field = Entry()
 text.pack()
+field.pack()
 info = BatteryInfo()
 data_update_time = 3
 dim_time = 5
@@ -84,44 +88,48 @@ dev = InputDevice('/dev/input/event0')
 dev2 = InputDevice('/dev/input/event6')
 
 def signal_handler(signal, frame):
-    text.insert(INSERT, "Backlight settings were restored")
+    text.insert(INSERT, 'Backlight settings were restored')
     text.insert(INSERT, '\n')
     info.set_original_brightness()
     dev.close()
     dev2.close()
     sys.exit(0)
 
-def loop(count_time, dim_flag, dim_start_time, start_time):
+def loop(count_time, dim_flag, dim_start_time, start_time, event_flag):
     keyboard_event = dev.read_one()
     mouse_event = dev2.read_one()
 
-    if keyboard_event is not None or mouse_event is not None:
-        dim_start_time = time.time()
-        # turn off dim
-        if info.mode == 0 and info.brightness != info.brightness_at_start and dim_flag is True:
-            info.set_original_brightness()
+    if field.get() != "":
+
+        dim_time = int(field.get())
+
+        if keyboard_event is not None and mouse_event is not None and event_flag is False:
             dim_start_time = time.time()
-            dim_flag = False
 
-    # change brightness according to the current battery mode
-    if info.mode == 1 and info.brightness != info.brightness_at_start:
-        info.set_original_brightness()
+            # turn off dim
+            if info.mode == 0 and info.brightness != info.brightness_at_start and dim_flag is True:
+                info.set_original_brightness()
+                dim_start_time = time.time()
+                dim_flag = False
 
-    # turn on dim
-    if info.mode == 0 and info.brightness != info.brightness_in_powersafe_mode \
-            and dim_start_time + dim_time < time.time() and dim_flag is False:
-        info.set_powersafe_brightness()
-        dim_start_time = time.time()
-        dim_flag = True
+        # change brightness according to the current battery mode
+        if info.mode == 1 and info.brightness != info.brightness_at_start:
+            info.set_original_brightness()
 
-    if time.time() > count_time + data_update_time:
-        #os.system('clear')
-        count_time = time.time()
-        info.get_power_type()
-        info.get_capacity()
-        info.get_estimated_time()
+        if info.mode == 0 and info.brightness != info.brightness_in_powersafe_mode \
+                and dim_start_time + dim_time < time.time() and dim_flag is False:
+            os.system("xset dpms force off")
+            info.set_powersafe_brightness()
+            dim_start_time = time.time()
+            dim_flag = True
 
-    top.after(100, loop, count_time, dim_flag, dim_start_time, start_time)
+        if time.time() > count_time + data_update_time:
+            count_time = time.time()
+            info.get_power_type()
+            info.get_capacity()
+            info.get_estimated_time()
+
+    top.after(100, loop, count_time, dim_flag, dim_start_time, start_time, event_flag)
 
 
 
@@ -134,8 +142,9 @@ if __name__ == '__main__':
     dim_start_time = time.time()
     count_time = time.time() - data_update_time
     dim_flag = False
+    event_flag = False
 
-    loop(count_time, dim_flag, dim_start_time, start_time)
+    loop(count_time, dim_flag, dim_start_time, start_time, event_flag)
     top.mainloop()
 
 
